@@ -1,9 +1,15 @@
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class WebServer {
     public static void main(String[] args) {
         int port = 8080; // Default port number, can be changed to read from config.ini later
+
+        // Create a thread pool using ExecutorService
+        ExecutorService executorService = Executors.newFixedThreadPool(10); // You can adjust the pool size as needed
+
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Server started on port " + port);
 
@@ -11,11 +17,14 @@ public class WebServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Accepted connection from " + clientSocket);
 
-                // Handle client connection in a new thread
-                new Thread(() -> handleClient(clientSocket)).start();
+                // Use the executorService to submit tasks (handleClient) instead of creating threads
+                executorService.submit(() -> handleClient(clientSocket));
             }
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            // Shutdown the executorService when done
+            executorService.shutdown();
         }
     }
 
