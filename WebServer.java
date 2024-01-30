@@ -6,9 +6,9 @@ import java.util.concurrent.Executors;
 public class WebServer {
     public static void main(String[] args) {
         int port = 8080; // Default port number, can be changed to read from config.ini later
-
-        // Create a thread pool using ExecutorService
-        ExecutorService executorService = Executors.newFixedThreadPool(10); // You can adjust the pool size as needed
+        int maxThreads = 10; // Maximum number of threads in the thread pool
+        
+        ExecutorService executor = Executors.newFixedThreadPool(maxThreads); // Create a thread pool
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Server started on port " + port);
@@ -17,21 +17,19 @@ public class WebServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Accepted connection from " + clientSocket);
 
-                // Use the executorService to submit tasks (handleClient) instead of creating threads
-                executorService.submit(() -> handleClient(clientSocket));
+                // Submit client connection handling to the thread pool
+                executor.submit(() -> handleClient(clientSocket));
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            // Shutdown the executorService when done
-            executorService.shutdown();
+            executor.shutdown(); // Shutdown the ExecutorService gracefully
         }
     }
 
     private static void handleClient(Socket clientSocket) {
         try {
             // Here we will read the client's request and send a basic HTTP response
-            // For now, it's just a placeholder to ensure the connection works
             String httpResponse = "HTTP/1.1 200 OK\r\n\r\nHello World!";
             clientSocket.getOutputStream().write(httpResponse.getBytes("UTF-8"));
             clientSocket.close();
