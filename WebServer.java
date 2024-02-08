@@ -176,13 +176,8 @@ public class WebServer {
 
             
 
-            // Determine content type
-            String contentType = Files.probeContentType(path);
-            if (contentType == null) {
-                contentType = "application/octet-stream"; // Default binary content type
-            }
-
             if (Files.exists(path) && !Files.isDirectory(path)) {
+                String contentType = determineContentType(path);
                 byte[] fileContent = Files.readAllBytes(path);
                 writer.write("HTTP/1.1 200 OK\r\n");
                 writer.write("Content-Length: " + fileContent.length + "\r\n");
@@ -197,6 +192,22 @@ public class WebServer {
                 sendNotFound(writer);
             }
         }
+
+        private String determineContentType(Path path) {
+            String contentType = "application/octet-stream"; // Default content type
+            String fileName = path.getFileName().toString().toLowerCase();
+        
+            if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+                contentType = "text/html";
+            } else if (fileName.endsWith(".jpg") || (fileName.endsWith(".png")) || (fileName.endsWith(".gif")) || (fileName.endsWith(".bmp"))) {
+                contentType = "image";
+            } else if (fileName.endsWith(".ico")) {
+                contentType = "icon";
+            }
+        
+            return contentType;
+        }
+        
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
