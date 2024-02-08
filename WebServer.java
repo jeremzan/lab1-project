@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -90,8 +91,53 @@ public class WebServer {
                         serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"));
                         break;
                     case "POST":
-                        // Handle POST request, including reading the body if necessary
+                        // Handle POST request
+                        if (headers.containsKey("Content-Length")) {
+                            int contentLength = Integer.parseInt(headers.get("Content-Length"));
+                            char[] body = new char[contentLength];
+                            reader.read(body, 0, contentLength);
+                            String requestBody = new String(body);
+
+                            // Here you could process the requestBody as needed
+                            System.out.println("POST body: " + requestBody);
+
+                            // For this example, just echo the requestBody back in the response
+                            writer.write("HTTP/1.1 200 OK\r\n");
+                            writer.write("Content-Type: text/plain\r\n");
+                            writer.write("Content-Length: " + requestBody.length() + "\r\n");
+                            writer.write("\r\n");
+                            writer.write(requestBody);
+                            writer.flush();
+                        } else {
+                            sendBadRequest(writer);
+                        }
+                            break;
+                    case "TRACE":
+                        StringBuilder traceResponse = new StringBuilder();
+                    
+                        // Reconstruct the request line and headers for the TRACE response body
+                        traceResponse.append(requestLine).append("\r\n");
+                        for (Map.Entry<String, String> header : headers.entrySet()) {
+                            traceResponse.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+                        }
+                        traceResponse.append("\r\n"); // End of headers in the reconstructed request
+                    
+                        // Convert the reconstructed request to bytes
+                        byte[] traceResponseBody = traceResponse.toString().getBytes(StandardCharsets.UTF_8);
+                    
+                        // Send the TRACE response headers
+                        writer.write("HTTP/1.1 200 OK\r\n");
+                        writer.write("Content-Type: application/octet-stream\r\n");
+                        writer.write("Content-Length: " + traceResponseBody.length + "\r\n");
+                        writer.write("\r\n"); // End of headers in the response
+                        writer.flush();
+                    
+                        // Write the TRACE response body
+                        clientSocket.getOutputStream().write(traceResponseBody);
+                        clientSocket.getOutputStream().flush();
                         break;
+                        
+
                     default:
                         sendNotImplemented(writer);
                         break;
@@ -127,6 +173,8 @@ public class WebServer {
             if (Files.isDirectory(path)) {
                 path = path.resolve(defaultPage);
             }
+
+            
 
             // Determine content type
             String contentType = Files.probeContentType(path);
