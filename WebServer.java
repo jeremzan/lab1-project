@@ -61,7 +61,7 @@ public class WebServer {
                 String requestLine = reader.readLine();
                 if (requestLine == null) {
                     System.err.println("Client closed the connection before sending a request.");
-                    return; // Exit the method as there's nothing to process
+                    return; 
                 }
                 System.out.println(requestLine);
                 
@@ -79,24 +79,26 @@ public class WebServer {
                 if (resourcePath.contains("..")) {
                     sendBadRequest(writer);
                     return;
-            }
+                }
 
                 Map<String, String> headers = new HashMap<>();
                 String headerLine;
                 while (!(headerLine = reader.readLine()).isEmpty()) {
                     String[] headerParts = headerLine.split(": ");
                     if (headerParts.length == 2) {
-                        headers.put(headerParts[0], headerParts[1]);
+                        headers.put(headerParts[0].trim(), headerParts[1].trim());
+                        System.out.println("Request Header: " + headerParts[0].trim() + ": " + headerParts[1].trim()); // Print each request header
                     }
                 }
+
+                // Check for chunked transfer encoding request
+                boolean isChunked = "yes".equalsIgnoreCase(headers.get("chunked"));
 
                 // Handle different HTTP methods
                 switch (method) {
                     case "GET":
-                        serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("GET"));
-                        break;
                     case "HEAD":
-                        serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"));
+                        serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"), isChunked);
                         break;
                     case "POST":
                         // Parse parameters from the URL for POST requests
@@ -168,7 +170,7 @@ public class WebServer {
             }
         }
 
-        private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly) throws IOException {
+        private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
             // Normalize and resolve the file path
             Path path = Paths.get(rootDirectory).resolve(resourcePath.substring(1)).normalize();
             if (!path.startsWith(Paths.get(rootDirectory))) {
@@ -186,22 +188,53 @@ public class WebServer {
             if (Files.exists(path) && !Files.isDirectory(path)) {
                 String contentType = determineContentType(path);
                 byte[] fileContent = Files.readAllBytes(path);
-                writer.write("HTTP/1.1 200 OK\r\n");
-                System.out.println("HTTP/1.1 200 OK");
-                writer.write("Content-Length: " + fileContent.length + "\r\n");
-                System.out.println("Content-Length: " + fileContent.length);
-                writer.write("Content-Type: " + contentType + "\r\n\r\n");
-                System.out.println("Content-Type: " + contentType);
-                System.out.println();
-                writer.flush();
-
-                if (!headOnly) {
-                    out.write(fileContent);
-                    out.flush();
+                
+                if (isChunked) {
+                    writer.write("HTTP/1.1 200 OK\r\n");
+                    writer.write("Transfer-Encoding: chunked\r\n");
+                    writer.write("Content-Type: " + contentType + "\r\n\r\n");
+                    writer.flush();
+                    
+                    if (!headOnly) {
+                        sendChunkedResponse(out, fileContent);
+                    }
+                } else {
+                    writer.write("HTTP/1.1 200 OK\r\n");
+                    writer.write("Content-Length: " + fileContent.length + "\r\n");
+                    writer.write("Content-Type: " + contentType + "\r\n\r\n");
+                    writer.flush();
+                    
+                    if (!headOnly) {
+                        out.write(fileContent);
+                        out.flush();
+                    }
                 }
+                
+                // Print response headers
+                System.out.println("Response Header: HTTP/1.1 200 OK");
+                if (isChunked) {
+                    System.out.println("Response Header: Transfer-Encoding: chunked");
+                } else {
+                    System.out.println("Response Header: Content-Length: " + fileContent.length);
+                }
+                System.out.println("Response Header: Content-Type: " + contentType);
             } else {
                 sendNotFound(writer);
             }
+        }
+
+        private void sendChunkedResponse(OutputStream out, byte[] data) throws IOException {
+            int offset = 0;
+            while (offset < data.length) {
+                int chunkSize = Math.min(4096, data.length - offset); // 4KB chunk size
+                String chunkHeader = Integer.toHexString(chunkSize) + "\r\n";
+                out.write(chunkHeader.getBytes(StandardCharsets.UTF_8));
+                out.write(data, offset, chunkSize);
+                out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                offset += chunkSize;
+            }
+            out.write("0\r\n\r\n".getBytes(StandardCharsets.UTF_8)); // End of chunks
+            out.flush();
         }
 
         private String determineContentType(Path path) {
