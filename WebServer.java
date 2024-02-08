@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
@@ -62,7 +63,7 @@ public class WebServer {
                     System.err.println("Client closed the connection before sending a request.");
                     return; // Exit the method as there's nothing to process
                 }
-                System.out.println("Request: " + requestLine);
+                System.out.println(requestLine);
                 
                 // Split request line
                 String[] requestParts = requestLine.split(" ");
@@ -73,7 +74,12 @@ public class WebServer {
 
                 String method = requestParts[0];
                 String resourcePath = requestParts[1];
-                String httpVersion = requestParts[2];
+
+                // Prevent directory traversal vulnerability
+                if (resourcePath.contains("..")) {
+                    sendBadRequest(writer);
+                    return;
+            }
 
                 Map<String, String> headers = new HashMap<>();
                 String headerLine;
@@ -87,21 +93,28 @@ public class WebServer {
                 // Handle different HTTP methods
                 switch (method) {
                     case "GET":
+                        serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("GET"));
+                        break;
                     case "HEAD":
                         serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"));
                         break;
                     case "POST":
-                        // Handle POST request
+                        // Parse parameters from the URL for POST requests
+                        Map<String, String> postParameters = parseParameters(resourcePath);
+                        System.out.println("POST parameters from URL: " + postParameters);
+                    
+                        // If there's a need to process the body, you can do so here
+                        // Note: This example just reads and echoes the body for demonstration purposes
                         if (headers.containsKey("Content-Length")) {
                             int contentLength = Integer.parseInt(headers.get("Content-Length"));
                             char[] body = new char[contentLength];
                             reader.read(body, 0, contentLength);
                             String requestBody = new String(body);
-
-                            // Here you could process the requestBody as needed
+                    
+                            // Log the POST body (if necessary for your application)
                             System.out.println("POST body: " + requestBody);
-
-                            // For this example, just echo the requestBody back in the response
+                    
+                            // Echo the requestBody back in the response (for demonstration)
                             writer.write("HTTP/1.1 200 OK\r\n");
                             writer.write("Content-Type: text/plain\r\n");
                             writer.write("Content-Length: " + requestBody.length() + "\r\n");
@@ -111,7 +124,7 @@ public class WebServer {
                         } else {
                             sendBadRequest(writer);
                         }
-                            break;
+                        break;
                     case "TRACE":
                         StringBuilder traceResponse = new StringBuilder();
                     
@@ -156,12 +169,6 @@ public class WebServer {
         }
 
         private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly) throws IOException {
-            // Prevent directory traversal vulnerability
-            if (resourcePath.contains("..")) {
-                sendBadRequest(writer);
-                return;
-            }
-
             // Normalize and resolve the file path
             Path path = Paths.get(rootDirectory).resolve(resourcePath.substring(1)).normalize();
             if (!path.startsWith(Paths.get(rootDirectory))) {
@@ -180,8 +187,12 @@ public class WebServer {
                 String contentType = determineContentType(path);
                 byte[] fileContent = Files.readAllBytes(path);
                 writer.write("HTTP/1.1 200 OK\r\n");
+                System.out.println("HTTP/1.1 200 OK");
                 writer.write("Content-Length: " + fileContent.length + "\r\n");
+                System.out.println("Content-Length: " + fileContent.length);
                 writer.write("Content-Type: " + contentType + "\r\n\r\n");
+                System.out.println("Content-Type: " + contentType);
+                System.out.println();
                 writer.flush();
 
                 if (!headOnly) {
@@ -208,6 +219,26 @@ public class WebServer {
             return contentType;
         }
         
+        private Map<String, String> parseParameters(String url) {
+            Map<String, String> parameters = new HashMap<>();
+            try {
+                String[] urlParts = url.split("\\?");
+                if (urlParts.length > 1) {
+                    String query = urlParts[1];
+                    for (String param : query.split("&")) {
+                        String[] pair = param.split("=");
+                        if (pair.length > 1) {
+                            parameters.put(URLDecoder.decode(pair[0], StandardCharsets.UTF_8.name()), URLDecoder.decode(pair[1], StandardCharsets.UTF_8.name()));
+                        } else {
+                            parameters.put(URLDecoder.decode(pair[0], StandardCharsets.UTF_8.name()), "");
+                        }
+                    }
+                }
+            } catch (UnsupportedEncodingException e) {
+                System.err.println("Error decoding URL parameters: " + e.getMessage());
+            }
+            return parameters;
+}
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
