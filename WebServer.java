@@ -271,7 +271,7 @@ public class WebServer {
                 System.err.println("Error decoding URL parameters: " + e.getMessage());
             }
             return parameters;
-}
+        }
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
