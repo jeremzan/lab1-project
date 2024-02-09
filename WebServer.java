@@ -141,6 +141,9 @@ public class WebServer {
                         byte[] traceResponseBody = traceResponse.toString().getBytes(StandardCharsets.UTF_8);
                     
                         // Send the TRACE response headers
+                        System.out.println("Response Header: HTTP/1.1 200 OK");
+                        System.out.println("Response Header: Content-Type: application/octet-stream");
+                        System.out.println("Response Header: Content-Length: " + traceResponseBody.length);
                         writer.write("HTTP/1.1 200 OK\r\n");
                         writer.write("Content-Type: application/octet-stream\r\n");
                         writer.write("Content-Length: " + traceResponseBody.length + "\r\n");
@@ -159,7 +162,8 @@ public class WebServer {
                 }
 
             } catch (IOException e) {
-                System.err.println("Error handling client: " + e.getMessage());
+                // Catch any unexpected exceptions and respond with a 500 Internal Server Error
+                System.err.println("Unexpected error handling client: " + e.getMessage());
                 e.printStackTrace();
             } finally {
                 try {
@@ -191,8 +195,8 @@ public class WebServer {
                 
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
-                    writer.write("Content-Length: " + fileContent.length + "\r\n");
                     writer.write("Transfer-Encoding: chunked\r\n");
+                    writer.write("Content-Length: " + fileContent.length + "\r\n");
                     writer.write("Content-Type: " + contentType + "\r\n\r\n");
                     writer.flush();
                     
@@ -286,6 +290,11 @@ public class WebServer {
 
         private void sendNotImplemented(BufferedWriter writer) throws IOException {
             writer.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
+            writer.flush();
+        }
+
+        private void sendInternalServerError(BufferedWriter writer) throws IOException {
+            writer.write("HTTP/1.1 500 Internal Server Error\r\n");
             writer.flush();
         }
     }
