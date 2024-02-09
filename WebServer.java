@@ -191,6 +191,7 @@ public class WebServer {
                 
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
+                    writer.write("Content-Length: " + fileContent.length + "\r\n");
                     writer.write("Transfer-Encoding: chunked\r\n");
                     writer.write("Content-Type: " + contentType + "\r\n\r\n");
                     writer.flush();
@@ -214,9 +215,9 @@ public class WebServer {
                 System.out.println("Response Header: HTTP/1.1 200 OK");
                 if (isChunked) {
                     System.out.println("Response Header: Transfer-Encoding: chunked");
-                } else {
-                    System.out.println("Response Header: Content-Length: " + fileContent.length);
+                    
                 }
+                System.out.println("Response Header: Content-Length: " + fileContent.length);
                 System.out.println("Response Header: Content-Type: " + contentType);
             } else {
                 sendNotFound(writer);
