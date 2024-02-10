@@ -113,57 +113,66 @@ public class WebServer {
                     case "HEAD":
                         serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"), isChunked);
                         break;
-                        case "POST":
-                        // Parse parameters from the URL
-                            Map<String, String> parameters = parseParameters(resourcePath);
-                        
-                            // Read and parse parameters from the body if Content-Length is present
-                            if (headers.containsKey("Content-Length")) {
-                                int contentLength = Integer.parseInt(headers.get("Content-Length"));
-                                char[] body = new char[contentLength];
-                                reader.read(body, 0, contentLength);
-                                String requestBody = new String(body);
-                                System.out.println("POST body: " + requestBody);
-                        
-                                // Parse and merge body parameters with URL parameters
-                                parameters.putAll(parseParameters("?" + requestBody));
-                            }
-                            
-                            Map<String, List<String>> addedParameters = storeParameters(parameters);
-                        
-                            // Serve the params_info.html page with parameter details
-                            generateParamsInfoPage(addedParameters);
-                            serveParamsInfoPage(writer, clientSocket.getOutputStream());
-                            break;
-                    case "TRACE":
-                        StringBuilder traceResponse = new StringBuilder();
+                    case "POST":
+                    // Parse parameters from the URL
+                        Map<String, String> parameters = parseParameters(resourcePath);
                     
-                        // Reconstruct the request line and headers for the TRACE response body
-                        traceResponse.append(requestLine).append("\r\n");
-                        for (Map.Entry<String, String> header : headers.entrySet()) {
-                            traceResponse.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+                        // Read and parse parameters from the body if Content-Length is present
+                        if (headers.containsKey("Content-Length")) {
+                            int contentLength = Integer.parseInt(headers.get("Content-Length"));
+                            char[] body = new char[contentLength];
+                            reader.read(body, 0, contentLength);
+                            String requestBody = new String(body);
+                            System.out.println("POST body: " + requestBody);
+                    
+                            // Parse and merge body parameters with URL parameters
+                            parameters.putAll(parseParameters("?" + requestBody));
                         }
-                        traceResponse.append("\r\n"); // End of headers in the reconstructed request
-                    
-                        // Convert the reconstructed request to bytes
-                        byte[] traceResponseBody = traceResponse.toString().getBytes(StandardCharsets.UTF_8);
-                    
-                        // Send the TRACE response headers
-                        System.out.println("Response Header: HTTP/1.1 200 OK");
-                        System.out.println("Response Header: Content-Type: application/octet-stream");
-                        System.out.println("Response Header: Content-Length: " + traceResponseBody.length);
-                        writer.write("HTTP/1.1 200 OK\r\n");
-                        writer.write("Content-Type: application/octet-stream\r\n");
-                        writer.write("Content-Length: " + traceResponseBody.length + "\r\n");
-                        writer.write("\r\n"); // End of headers in the response
-                        writer.flush();
-                    
-                        // Write the TRACE response body
-                        clientSocket.getOutputStream().write(traceResponseBody);
-                        clientSocket.getOutputStream().flush();
-                        break;
                         
+                        Map<String, List<String>> addedParameters = storeParameters(parameters);
+                    
+                        // Serve the params_info.html page with parameter details
+                        generateParamsInfoPage(addedParameters);
+                        serveParamsInfoPage(writer, clientSocket.getOutputStream());
+                        break;
+                    case "TRACE":
+                        StringBuilder traceResponseBuilder = new StringBuilder();
 
+                        // Reconstruct the request line and headers for the TRACE response body
+                        traceResponseBuilder.append(requestLine).append("\r\n");
+                        for (Map.Entry<String, String> header : headers.entrySet()) {
+                            traceResponseBuilder.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+                        }
+                        traceResponseBuilder.append("\r\n"); // End of headers in the reconstructed request
+
+                        byte[] traceResponseBody = traceResponseBuilder.toString().getBytes(StandardCharsets.UTF_8);
+
+                        // Check if the response should be chunked
+                        if (isChunked) {
+                            writer.write("HTTP/1.1 200 OK\r\n");
+                            System.out.println("Response Header: HTTP/1.1 200 OK");
+                            writer.write("Transfer-Encoding: chunked\r\n");
+                            System.out.println("Response Header: Transfer-Encoding: chunked");
+                            writer.write("Content-Type: application/octet-stream\r\n\r\n");
+                            System.out.println("Response Header: Content-Type: application/octet-stream");
+                            writer.flush();
+
+                            // Send the TRACE response body using chunked transfer encoding
+                            sendChunkedResponse(clientSocket.getOutputStream(), traceResponseBody);
+                        } else {
+                            writer.write("HTTP/1.1 200 OK\r\n");
+                            System.out.println("Response Header: HTTP/1.1 200 OK");
+                            writer.write("Content-Type: application/octet-stream\r\n");
+                            System.out.println("Response Header: Content-Type: application/octet-stream");
+                            writer.write("Content-Length: " + traceResponseBody.length + "\r\n\r\n");
+                            System.out.println("Response Header: Content-Length: " + traceResponseBody.length);
+                            writer.flush();
+
+                            // Write the TRACE response body
+                            clientSocket.getOutputStream().write(traceResponseBody);
+                            clientSocket.getOutputStream().flush();
+                        }
+                        break;
                     default:
                         sendNotImplemented(writer);
                         break;
