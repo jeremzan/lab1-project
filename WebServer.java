@@ -12,6 +12,7 @@ public class WebServer {
     private static String rootDirectory;
     private static String defaultPage;
     private static int maxThreads;
+    private static final Map<String, List<String>> storedParameters = new HashMap<>();
 
     public static void main(String[] args) {
         Properties config = loadConfig("config.ini");
@@ -36,6 +37,13 @@ public class WebServer {
             executor.shutdown();
         }
     }
+    
+    private static void storeParameters(Map<String, String> parameters) {
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            storedParameters.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(entry.getValue());
+        }
+    }
+    
 
     private static Properties loadConfig(String fileName) {
         Properties config = new Properties();
@@ -100,32 +108,25 @@ public class WebServer {
                     case "HEAD":
                         serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"), isChunked);
                         break;
-                    case "POST":
-                        // Parse parameters from the URL for POST requests
-                        Map<String, String> postParameters = parseParameters(resourcePath);
-                        System.out.println("POST parameters from URL: " + postParameters);
-                    
-                        // If there's a need to process the body, you can do so here
-                        // Note: This example just reads and echoes the body for demonstration purposes
-                        if (headers.containsKey("Content-Length")) {
-                            int contentLength = Integer.parseInt(headers.get("Content-Length"));
-                            char[] body = new char[contentLength];
-                            reader.read(body, 0, contentLength);
-                            String requestBody = new String(body);
-                    
-                            // Log the POST body (if necessary for your application)
-                            System.out.println("POST body: " + requestBody);
-                    
-                            // Echo the requestBody back in the response (for demonstration)
-                            writer.write("HTTP/1.1 200 OK\r\n");
-                            writer.write("Content-Type: text/plain\r\n");
-                            writer.write("Content-Length: " + requestBody.length() + "\r\n");
-                            writer.write("\r\n");
-                            writer.write(requestBody);
-                            writer.flush();
-                        } else {
-                            sendBadRequest(writer);
-                        }
+                        case "POST":
+                        // Parse parameters from the URL
+                            Map<String, String> parameters = parseParameters(resourcePath);
+                        
+                            // Read and parse parameters from the body if Content-Length is present
+                            if (headers.containsKey("Content-Length")) {
+                                int contentLength = Integer.parseInt(headers.get("Content-Length"));
+                                char[] body = new char[contentLength];
+                                reader.read(body, 0, contentLength);
+                                String requestBody = new String(body);
+                                System.out.println("POST body: " + requestBody);
+                        
+                                // Parse and merge body parameters with URL parameters
+                                parameters.putAll(parseParameters("?" + requestBody));
+                            }
+                            storeParameters(parameters);
+                        
+                            // Serve the params_info.html page with parameter details
+                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), parameters);
                         break;
                     case "TRACE":
                         StringBuilder traceResponse = new StringBuilder();
@@ -173,6 +174,47 @@ public class WebServer {
                 }
             }
         }
+
+        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out, Map<String, String> parameters) throws IOException {
+            StringBuilder builder = new StringBuilder();
+            builder.append("<!DOCTYPE html>\n")
+                   .append("<html lang=\"en\">\n")
+                   .append("<head>\n")
+                   .append("    <meta charset=\"UTF-8\">\n")
+                   .append("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
+                   .append("    <title>Submitted Parameters</title>\n")
+                   .append("</head>\n")
+                   .append("<body>\n")
+                   .append("    <h1>Submitted Parameters</h1>\n")
+                   .append("    <table border=\"1\">\n") // Start of the table
+                   .append("        <tr>\n") // Table header row
+                   .append("            <th>Parameter Name</th>\n")
+                   .append("            <th>Value</th>\n")
+                   .append("        </tr>\n");
+        
+            for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                builder.append("        <tr>\n") // Start of a table row for each parameter
+                       .append("            <td>").append(entry.getKey()).append("</td>\n") // Parameter name
+                       .append("            <td>").append(entry.getValue()).append("</td>\n") // Parameter value
+                       .append("        </tr>\n"); // End of the table row
+            }
+        
+            builder.append("    </table>\n") // End of the table
+                   .append("</body>\n")
+                   .append("</html>");
+        
+            byte[] responseBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
+        
+            writer.write("HTTP/1.1 200 OK\r\n");
+            writer.write("Content-Type: text/html\r\n");
+            writer.write("Content-Length: " + responseBytes.length + "\r\n");
+            writer.write("\r\n");
+            writer.flush();
+        
+            out.write(responseBytes);
+            out.flush();
+        }
+        
 
         private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
             // Normalize and resolve the file path
@@ -257,12 +299,12 @@ public class WebServer {
             return contentType;
         }
         
-        private Map<String, String> parseParameters(String url) {
+        private Map<String, String> parseParameters(String input) {
             Map<String, String> parameters = new HashMap<>();
             try {
-                String[] urlParts = url.split("\\?");
-                if (urlParts.length > 1) {
-                    String query = urlParts[1];
+                String[] parts = input.split("\\?");
+                if (parts.length > 1) {
+                    String query = parts[1];
                     for (String param : query.split("&")) {
                         String[] pair = param.split("=");
                         if (pair.length > 1) {
@@ -277,6 +319,7 @@ public class WebServer {
             }
             return parameters;
         }
+        
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
