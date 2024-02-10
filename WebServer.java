@@ -132,7 +132,8 @@ public class WebServer {
                             Map<String, List<String>> addedParameters = storeParameters(parameters);
                         
                             // Serve the params_info.html page with parameter details
-                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), addedParameters);
+                            generateParamsInfoPage(addedParameters);
+                            serveParamsInfoPage(writer, clientSocket.getOutputStream());
                             break;
                     case "TRACE":
                         StringBuilder traceResponse = new StringBuilder();
@@ -181,47 +182,65 @@ public class WebServer {
             }
         }
 
-        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out, Map<String, List<String>> parameters) throws IOException {
-            StringBuilder builder = new StringBuilder();
-            builder.append("<!DOCTYPE html>\n")
-                   .append("<html lang=\"en\">\n")
-                   .append("<head>\n")
-                   .append("    <meta charset=\"UTF-8\">\n")
-                   .append("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
-                   .append("    <title>Submitted Parameters</title>\n")
-                   .append("</head>\n")
-                   .append("<body>\n")
-                   .append("    <h1>Submitted Parameters</h1>\n")
-                   .append("    <table border=\"1\">\n") // Start of the table
-                   .append("        <tr>\n") // Table header row
-                   .append("            <th>Parameter Name</th>\n")
-                   .append("            <th>Value</th>\n")
-                   .append("        </tr>\n");
+        private void generateParamsInfoPage(Map<String, List<String>> parameters) throws IOException {
+            String filePath = rootDirectory + "params_info.html"; // Define the file path for params_info.html
+            try (BufferedWriter fileWriter = Files.newBufferedWriter(Paths.get(filePath), StandardCharsets.UTF_8)) {
+                StringBuilder builder = new StringBuilder();
+                builder.append("<!DOCTYPE html>\n")
+                       .append("<html lang=\"en\">\n")
+                       .append("<head>\n")
+                       .append("    <meta charset=\"UTF-8\">\n")
+                       .append("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
+                       .append("    <title>Submitted Parameters</title>\n")
+                       .append("</head>\n")
+                       .append("<body>\n")
+                       .append("    <h1>Submitted Parameters</h1>\n")
+                       .append("    <table border=\"1\">\n") // Start of the table
+                       .append("        <tr>\n") // Table header row
+                       .append("            <th>Parameter Name</th>\n")
+                       .append("            <th>Value</th>\n")
+                       .append("        </tr>\n");
         
                 for (Map.Entry<String, List<String>> entry : parameters.entrySet()) {
                     for (String value : entry.getValue()) {
-                        builder.append("        <tr>\n")
+                        builder.append("        <tr>\n") // Start of a table row for each parameter
                                .append("            <td>").append(entry.getKey()).append("</td>\n") // Parameter name
                                .append("            <td>").append(value).append("</td>\n") // Each value in the list
                                .append("        </tr>\n");
                     }
                 }
         
-            builder.append("    </table>\n") // End of the table
-                   .append("</body>\n")
-                   .append("</html>");
+                builder.append("    </table>\n") // End of the table
+                       .append("</body>\n")
+                       .append("</html>");
         
-            byte[] responseBytes = builder.toString().getBytes(StandardCharsets.UTF_8);
-        
-            writer.write("HTTP/1.1 200 OK\r\n");
-            writer.write("Content-Type: text/html\r\n");
-            writer.write("Content-Length: " + responseBytes.length + "\r\n");
-            writer.write("\r\n");
-            writer.flush();
-        
-            out.write(responseBytes);
-            out.flush();
+                fileWriter.write(builder.toString());
+            }
         }
+        
+
+        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out) throws IOException {
+            String filePath = rootDirectory + "params_info.html"; // The path to params_info.html
+            Path path = Paths.get(filePath);
+        
+            if (Files.exists(path) && !Files.isDirectory(path)) {
+                byte[] fileContent = Files.readAllBytes(path);
+                String contentType = "text/html"; // Content type for HTML
+        
+                writer.write("HTTP/1.1 200 OK\r\n");
+                writer.write("Content-Type: " + contentType + "\r\n");
+                writer.write("Content-Length: " + fileContent.length + "\r\n");
+                writer.write("\r\n");
+                writer.flush();
+        
+                out.write(fileContent);
+                out.flush();
+            } else {
+                // If the file doesn't exist, send a 404 Not Found response
+                sendNotFound(writer);
+            }
+        }
+        
         
 
         private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
