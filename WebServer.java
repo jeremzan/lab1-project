@@ -38,11 +38,16 @@ public class WebServer {
         }
     }
     
-    private static void storeParameters(Map<String, String> parameters) {
+    private static Map<String, List<String>> storeParameters(Map<String, String> parameters) {
+        Map<String, List<String>> addedParameters = new HashMap<>();
         for (Map.Entry<String, String> entry : parameters.entrySet()) {
-            storedParameters.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(entry.getValue());
+            List<String> values = storedParameters.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+            values.add(entry.getValue());
+            addedParameters.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(entry.getValue());
         }
+        return addedParameters;
     }
+    
     
 
     private static Properties loadConfig(String fileName) {
@@ -123,11 +128,12 @@ public class WebServer {
                                 // Parse and merge body parameters with URL parameters
                                 parameters.putAll(parseParameters("?" + requestBody));
                             }
-                            storeParameters(parameters);
+                            
+                            Map<String, List<String>> addedParameters = storeParameters(parameters);
                         
                             // Serve the params_info.html page with parameter details
-                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), parameters);
-                        break;
+                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), addedParameters);
+                            break;
                     case "TRACE":
                         StringBuilder traceResponse = new StringBuilder();
                     
@@ -175,7 +181,7 @@ public class WebServer {
             }
         }
 
-        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out, Map<String, String> parameters) throws IOException {
+        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out, Map<String, List<String>> parameters) throws IOException {
             StringBuilder builder = new StringBuilder();
             builder.append("<!DOCTYPE html>\n")
                    .append("<html lang=\"en\">\n")
@@ -192,12 +198,14 @@ public class WebServer {
                    .append("            <th>Value</th>\n")
                    .append("        </tr>\n");
         
-            for (Map.Entry<String, String> entry : parameters.entrySet()) {
-                builder.append("        <tr>\n") // Start of a table row for each parameter
-                       .append("            <td>").append(entry.getKey()).append("</td>\n") // Parameter name
-                       .append("            <td>").append(entry.getValue()).append("</td>\n") // Parameter value
-                       .append("        </tr>\n"); // End of the table row
-            }
+                for (Map.Entry<String, List<String>> entry : parameters.entrySet()) {
+                    for (String value : entry.getValue()) {
+                        builder.append("        <tr>\n")
+                               .append("            <td>").append(entry.getKey()).append("</td>\n") // Parameter name
+                               .append("            <td>").append(value).append("</td>\n") // Each value in the list
+                               .append("        </tr>\n");
+                    }
+                }
         
             builder.append("    </table>\n") // End of the table
                    .append("</body>\n")
