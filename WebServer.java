@@ -244,20 +244,29 @@ public class WebServer {
         
 
         private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
+            // Check if the path contains parameters and extract them
+            String filePath = resourcePath;
+            
+            if (!headOnly && resourcePath.contains("?")) {
+                int paramIndex = resourcePath.indexOf("?");
+                String paramString = resourcePath.substring(paramIndex + 1);
+                Map<String, String> requestParameters = parseParameters("?" + paramString); // Use your existing parseParameters method
+                filePath = resourcePath.substring(0, paramIndex); // Exclude the parameters from the filePath
+                storeParameters(requestParameters); // Store extracted parameters (implement this method if not already done)
+            }
+        
             // Normalize and resolve the file path
-            Path path = Paths.get(rootDirectory).resolve(resourcePath.substring(1)).normalize();
+            Path path = Paths.get(rootDirectory).resolve(filePath.substring(1)).normalize();
             if (!path.startsWith(Paths.get(rootDirectory))) {
                 sendBadRequest(writer);
                 return;
             }
-
+        
             // Serve default page if necessary
             if (Files.isDirectory(path)) {
                 path = path.resolve(defaultPage);
             }
-
-            
-
+        
             if (Files.exists(path) && !Files.isDirectory(path)) {
                 String contentType = determineContentType(path);
                 byte[] fileContent = Files.readAllBytes(path);
@@ -265,7 +274,6 @@ public class WebServer {
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
                     writer.write("Transfer-Encoding: chunked\r\n");
-                    writer.write("Content-Length: " + fileContent.length + "\r\n");
                     writer.write("Content-Type: " + contentType + "\r\n\r\n");
                     writer.flush();
                     
@@ -288,7 +296,6 @@ public class WebServer {
                 System.out.println("Response Header: HTTP/1.1 200 OK");
                 if (isChunked) {
                     System.out.println("Response Header: Transfer-Encoding: chunked");
-                    
                 }
                 System.out.println("Response Header: Content-Length: " + fileContent.length);
                 System.out.println("Response Header: Content-Type: " + contentType);
@@ -296,6 +303,7 @@ public class WebServer {
                 sendNotFound(writer);
             }
         }
+        
 
         private void sendChunkedResponse(OutputStream out, byte[] data) throws IOException {
             int offset = 0;
