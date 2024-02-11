@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise 1 Problem 5</title>
+</head>
+<body>
+    <style>
+
+      html {
+        overflow-x: hidden;
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+      h1 {
+          color: blue;
+          /**text-align: center; **/
+          position: relative;
+
+          animation: moveH1 10s linear infinite;
+      }
+
+      @keyframes moveH1 {
+        0% {
+            left: 0;
+        }
+        50% {
+            left: 50%;
+        }
+        100% {
+            left: 100%;
+    }
+      }
+
+
+      h2 {
+          color: red;
+          text-align: center;
+      }
+
+      .image-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 2em;
+      }
+
+      img {
+          width: 40em;
+          height: 30em;
+      }
+
+      #image1 {
+          border-radius: 30px 0px 0px 30px;
+      }
+
+      #image2 {
+          border-radius: 0px 30px 30px 0px;
+      }
+
+      .anchors {
+        padding-bottom: 2em;
+      }
+
+      a {
+          display: block;
+          text-align: center;
+          margin-top: 2em;
+          font-size: 18px;
+      }
+
+      
+
+      .form-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 3em;
+          margin-bottom: 2em;
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+      }
+      
+
+
+      input {
+        border: 2px solid #CFCFE0;
+        border-radius: 13px;
+        background-color: #fcfcfc;
+        margin-bottom: 1em;
+        padding-left: 0.5em;
+        height: 3.8em;
+        width: 350px;
+      }
+      
+      textarea {
+        border: 2px solid #CFCFE0;
+        border-radius: 13px;
+        background-color: #fcfcfc;
+        margin-bottom: 1em;
+        padding-left: 0.5em;
+        height: 8em;
+        width: 350px;
+        resize: none;
+      }
+      
+      button {
+        border-radius: 30px;
+        font-size: 1.15em;
+        padding: 0.5em 1em;
+        border-width: 0;
+        width: 350px;
+        background-color: #000;
+        color: #fff;
+      }
+
+      button:hover {
+        background-color: #940734;
+      }
+
+      </style>
+      <h1>Computer networks 2023: Exercise 1</h1>
+      <h2>Ethan Fajnkuchen & Jeremy Zanna</h2>
+      <div class='image-container'>
+        <div>
+          <img id='image1' src="./image1.jpg" />
+        </div>
+        <div>
+          <img id='image2' src='./image2.jpg' />
+        </div>
+      </div>
+      <div class="anchors">
+        <a href='https://moodle.runi.ac.il/2024/course/view.php?id=2401572'>Visit the course Website!</a>
+        <a href='https://techcrunch.com/'>Don't miss any news with TechCrunch!</a>
+      </div>
+      <hr />
+    </div>
+      <div class="form-container">
+        <form method="post" action="/params_info.html">
+          <textarea name="message" placeholder='Your Message' required></textarea> 
+          <input name="checkbox" type="checkbox" />
+          <button type="submit">Send!</button>
+        </form>
+        
+  </body>
+</html>
