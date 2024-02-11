@@ -87,12 +87,50 @@ public class WebServer {
 
                 String method = requestParts[0];
                 String resourcePath = requestParts[1];
+                String httpVersion = requestParts[2];
 
-                // Prevent directory traversal vulnerability
-                if (resourcePath.contains("..")) {
+                if (!"HTTP/1.1".equals(httpVersion)) {
                     sendBadRequest(writer);
                     return;
                 }
+
+                // // Prevent directory traversal vulnerability
+                // if (resourcePath.contains("..")) {
+                //     sendBadRequest(writer);
+                //     return;
+                // }
+
+                // Normalize the path to remove "/../"
+                String[] pathSegments = resourcePath.split("/");
+                Deque<String> pathStack = new ArrayDeque<>();
+
+                for (String segment : pathSegments) {
+                    // Ignore current directory symbol
+                    if (segment.equals(".") || segment.isEmpty()) continue;
+
+                    // Pop the last segment if we encounter a parent directory symbol
+                    if (segment.equals("..")) {
+                        if (!pathStack.isEmpty()) {
+                            pathStack.pop();
+                        }
+                    } else {
+                        pathStack.push(segment);
+                    }
+                }
+
+                // Reconstruct the path from the stack
+                StringBuilder rewrittenPath = new StringBuilder();
+                for (Iterator<String> it = pathStack.descendingIterator(); it.hasNext(); ) {
+                    rewrittenPath.append("/").append(it.next());
+                }
+
+                resourcePath = rewrittenPath.toString();
+
+                // If the path ended up empty, default it to "/"
+                if (resourcePath.isEmpty()) {
+                    resourcePath = "/";
+                }
+
 
                 Map<String, String> headers = new HashMap<>();
                 String headerLine;
@@ -174,6 +212,7 @@ public class WebServer {
                         }
                         break;
                     default:
+                        
                         sendNotImplemented(writer);
                         break;
                 }
@@ -366,23 +405,35 @@ public class WebServer {
         
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
+            System.out.println("Sending 400 Bad Request response");
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+            writer.write("400 Bad Request\r\n\r\n");
             writer.flush();
+            System.out.println("Response Header: HTTP/1.1 400 Bad Request");
         }
-
+        
         private void sendNotFound(BufferedWriter writer) throws IOException {
+            System.out.println("Sending 404 Not Found response");
             writer.write("HTTP/1.1 404 Not Found\r\n\r\n");
+            writer.write("404 Not Found\r\n\r\n");
             writer.flush();
+            System.out.println("Response Header: HTTP/1.1 404 Not Found");
         }
-
+        
         private void sendNotImplemented(BufferedWriter writer) throws IOException {
+            System.out.println("Sending 501 Not Implemented response");
             writer.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
+            writer.write("501 Not Implemented\r\n\r\n");
             writer.flush();
+            System.out.println("Response Header: HTTP/1.1 501 Not Implemented");
         }
-
+        
         private void sendInternalServerError(BufferedWriter writer) throws IOException {
+            System.out.println("Sending 500 Internal Server Error response");
             writer.write("HTTP/1.1 500 Internal Server Error\r\n");
+            writer.write("500 Internal Server Error\r\n");
             writer.flush();
+            System.out.println("Response Header: HTTP/1.1 500 Internal Server Error");
         }
     }
 }
