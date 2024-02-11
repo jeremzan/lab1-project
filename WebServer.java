@@ -167,11 +167,19 @@ public class WebServer {
                             parameters.putAll(parseParameters("?" + requestBody));
                         }
                         
-                        Map<String, List<String>> addedParameters = storeParameters(parameters);
+                
                     
                         // Serve the params_info.html page with parameter details
-                        generateParamsInfoPage(addedParameters);
-                        serveParamsInfoPage(writer, clientSocket.getOutputStream());
+
+                        if ("/params_info.html".equals(resourcePath.split("\\?")[0])) {
+                            Map<String, List<String>> addedParameters = storeParameters(parameters);
+                            // Generate and serve the params_info.html page with parameter details
+                            generateParamsInfoPage(storedParameters);
+                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), isChunked);
+                        } else {
+                            serveResource(writer, clientSocket.getOutputStream(), resourcePath, false, isChunked);
+
+                        }
                         break;
                     case "TRACE":
                         StringBuilder traceResponseBuilder = new StringBuilder();
@@ -267,22 +275,39 @@ public class WebServer {
         }
         
 
-        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out) throws IOException {
+        private void serveParamsInfoPage(BufferedWriter writer, OutputStream out, boolean isChunked) throws IOException {
             String filePath = rootDirectory + "params_info.html"; // The path to params_info.html
             Path path = Paths.get(filePath);
         
             if (Files.exists(path) && !Files.isDirectory(path)) {
                 byte[] fileContent = Files.readAllBytes(path);
                 String contentType = "text/html"; // Content type for HTML
-        
-                writer.write("HTTP/1.1 200 OK\r\n");
-                writer.write("Content-Type: " + contentType + "\r\n");
-                writer.write("Content-Length: " + fileContent.length + "\r\n");
-                writer.write("\r\n");
-                writer.flush();
-        
-                out.write(fileContent);
-                out.flush();
+                // Check if the response should be chunked
+                if (isChunked) {
+                    writer.write("HTTP/1.1 200 OK\r\n");
+                    System.out.println("Response Header: HTTP/1.1 200 OK");
+                    writer.write("Transfer-Encoding: chunked\r\n");
+                    System.out.println("Response Header: Transfer-Encoding: chunked");
+                    writer.write("Content-Type: text/html\r\n\r\n");
+                    System.out.println("Response Header: Content-Type: text/html");
+                    writer.flush();
+
+                    sendChunkedResponse(clientSocket.getOutputStream(), fileContent);
+                } else {
+                    writer.write("HTTP/1.1 200 OK\r\n");
+                    writer.write("Content-Type: " + contentType + "\r\n");
+                    writer.write("Content-Length: " + fileContent.length + "\r\n");
+                    writer.write("\r\n");
+                    writer.flush();
+    
+                    System.out.println("HTTP/1.1 200 OK");
+                    System.out.println("Content-Type: " + contentType);
+                    System.out.println("Content-Length: " + fileContent.length);
+            
+                    out.write(fileContent);
+                    out.flush();
+                }
+                
             } else {
                 // If the file doesn't exist, send a 404 Not Found response
                 sendNotFound(writer);
