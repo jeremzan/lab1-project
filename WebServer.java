@@ -89,7 +89,7 @@ public class WebServer {
                 String resourcePath = requestParts[1];
                 String httpVersion = requestParts[2];
 
-                if (!"HTTP/1.1".equals(httpVersion)) {
+                if (!httpVersion.startsWith("HTTP/")) {
                     sendBadRequest(writer);
                     return;
                 }
@@ -405,33 +405,25 @@ public class WebServer {
         
 
         private void sendBadRequest(BufferedWriter writer) throws IOException {
-            System.out.println("Sending 400 Bad Request response");
             writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
-            writer.write("400 Bad Request\r\n\r\n");
             writer.flush();
             System.out.println("Response Header: HTTP/1.1 400 Bad Request");
         }
         
         private void sendNotFound(BufferedWriter writer) throws IOException {
-            System.out.println("Sending 404 Not Found response");
             writer.write("HTTP/1.1 404 Not Found\r\n\r\n");
-            writer.write("404 Not Found\r\n\r\n");
             writer.flush();
             System.out.println("Response Header: HTTP/1.1 404 Not Found");
         }
         
         private void sendNotImplemented(BufferedWriter writer) throws IOException {
-            System.out.println("Sending 501 Not Implemented response");
             writer.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
-            writer.write("501 Not Implemented\r\n\r\n");
             writer.flush();
             System.out.println("Response Header: HTTP/1.1 501 Not Implemented");
         }
         
         private void sendInternalServerError(BufferedWriter writer) throws IOException {
-            System.out.println("Sending 500 Internal Server Error response");
             writer.write("HTTP/1.1 500 Internal Server Error\r\n");
-            writer.write("500 Internal Server Error\r\n");
             writer.flush();
             System.out.println("Response Header: HTTP/1.1 500 Internal Server Error");
         }
