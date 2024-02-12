@@ -48,7 +48,6 @@ public class WebServer {
         return addedParameters;
     }
     
-    
 
     private static Properties loadConfig(String fileName) {
         Properties config = new Properties();
@@ -73,7 +72,6 @@ public class WebServer {
    
                 String requestLine = reader.readLine();
                 if (requestLine == null) {
-                    System.err.println("Client closed the connection before sending a request.");
                     return; 
                 }
                 System.out.println(requestLine);
@@ -154,17 +152,18 @@ public class WebServer {
                     case "POST":
                     // Parse parameters from the URL
                         Map<String, String> parameters = parseParameters(resourcePath);
-                    
+                        Map<String, String> bodyParameters = new HashMap<>();
+
                         // Read and parse parameters from the body if Content-Length is present
                         if (headers.containsKey("Content-Length")) {
                             int contentLength = Integer.parseInt(headers.get("Content-Length"));
                             char[] body = new char[contentLength];
                             reader.read(body, 0, contentLength);
                             String requestBody = new String(body);
-                            System.out.println("POST body: " + requestBody);
-                    
-                            // Parse and merge body parameters with URL parameters
-                            parameters.putAll(parseParameters("?" + requestBody));
+                            System.out.println("POST body: " + requestBody);          
+                            bodyParameters = parseParameters("?" + requestBody);     
+                            parameters.putAll(bodyParameters);
+                            
                         }
                         
                 
@@ -177,7 +176,10 @@ public class WebServer {
                             generateParamsInfoPage(storedParameters);
                             serveParamsInfoPage(writer, clientSocket.getOutputStream(), isChunked);
                         } else {
-                            serveResource(writer, clientSocket.getOutputStream(), resourcePath, false, isChunked);
+                            boolean isGoodRequest = serveResource(writer, clientSocket.getOutputStream(), resourcePath, false, isChunked);
+                            if (isGoodRequest) {
+                                storeParameters(bodyParameters);
+                            }
 
                         }
                         break;
@@ -316,23 +318,25 @@ public class WebServer {
         
         
 
-        private void serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
+        private boolean serveResource(BufferedWriter writer, OutputStream out, String resourcePath, boolean headOnly, boolean isChunked) throws IOException {
             // Check if the path contains parameters and extract them
             String filePath = resourcePath;
+            Map<String, String> requestParameters = new HashMap<>();
+            boolean isGoodRequest = false;
+
             
             if (!headOnly && resourcePath.contains("?")) {
                 int paramIndex = resourcePath.indexOf("?");
                 String paramString = resourcePath.substring(paramIndex + 1);
-                Map<String, String> requestParameters = parseParameters("?" + paramString); // Use your existing parseParameters method
+                requestParameters = parseParameters("?" + paramString); // Use your existing parseParameters method
                 filePath = resourcePath.substring(0, paramIndex); // Exclude the parameters from the filePath
-                storeParameters(requestParameters); // Store extracted parameters (implement this method if not already done)
             }
         
             // Normalize and resolve the file path
             Path path = Paths.get(rootDirectory).resolve(filePath.substring(1)).normalize();
             if (!path.startsWith(Paths.get(rootDirectory))) {
                 sendBadRequest(writer);
-                return;
+                return isGoodRequest;
             }
         
             // Serve default page if necessary
@@ -343,6 +347,8 @@ public class WebServer {
             if (Files.exists(path) && !Files.isDirectory(path)) {
                 String contentType = determineContentType(path);
                 byte[] fileContent = Files.readAllBytes(path);
+                storeParameters(requestParameters); // Store extracted parameters (implement this method if not already done)
+
                 
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
@@ -372,8 +378,10 @@ public class WebServer {
                 }
                 System.out.println("Response Header: Content-Length: " + fileContent.length);
                 System.out.println("Response Header: Content-Type: " + contentType);
+                return true;
             } else {
                 sendNotFound(writer);
+                return false;
             }
         }
         
