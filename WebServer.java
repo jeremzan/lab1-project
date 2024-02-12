@@ -27,14 +27,20 @@ public class WebServer {
             System.out.println("Server started on port " + port);
 
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                executor.submit(new ClientHandler(clientSocket));
+                try {
+                    Socket clientSocket = serverSocket.accept();
+                    executor.submit(new ClientHandler(clientSocket));
+                } catch (IOException e) {
+                    System.err.println("Exception accepting client connection: " + e.getMessage());
+                    // Optionally, you could choose to break the loop and shut down the server here
+                }
             }
         } catch (Exception e) {
             System.err.println("Server exception: " + e.getMessage());
             e.printStackTrace();
         } finally {
             executor.shutdown();
+            System.out.println("Server is shutting down gracefully.");
         }
     }
     
@@ -92,11 +98,6 @@ public class WebServer {
                     return;
                 }
 
-                // // Prevent directory traversal vulnerability
-                // if (resourcePath.contains("..")) {
-                //     sendBadRequest(writer);
-                //     return;
-                // }
 
                 // Normalize the path to remove "/../"
                 String[] pathSegments = resourcePath.split("/");
@@ -147,40 +148,50 @@ public class WebServer {
                 switch (method) {
                     case "GET":
                     case "HEAD":
-                        serveResource(writer, clientSocket.getOutputStream(), resourcePath, method.equals("HEAD"), isChunked);
+                        try {
+                            // Attempt to serve the requested resource
+                            boolean headOnly = method.equals("HEAD");
+                            serveResource(writer, clientSocket.getOutputStream(), resourcePath, headOnly, isChunked); // Assume non-chunked for simplicity
+                        } catch (IOException e) {
+                            // Handle any IO exceptions by sending an internal server error
+                            sendInternalServerError(writer);
+                            System.err.println("Error serving resource: " + e.getMessage());
+                        }
                         break;
                     case "POST":
-                    // Parse parameters from the URL
-                        Map<String, String> parameters = parseParameters(resourcePath);
-                        Map<String, String> bodyParameters = new HashMap<>();
+                        try{
+                            // Parse parameters from the URL
+                            Map<String, String> parameters = parseParameters(resourcePath);
+                            Map<String, String> bodyParameters = new HashMap<>();
 
-                        // Read and parse parameters from the body if Content-Length is present
-                        if (headers.containsKey("Content-Length")) {
-                            int contentLength = Integer.parseInt(headers.get("Content-Length"));
-                            char[] body = new char[contentLength];
-                            reader.read(body, 0, contentLength);
-                            String requestBody = new String(body);
-                            System.out.println("POST body: " + requestBody);          
-                            bodyParameters = parseParameters("?" + requestBody);     
-                            parameters.putAll(bodyParameters);
-                            
-                        }
-                        
-                
-                    
-                        // Serve the params_info.html page with parameter details
-
-                        if ("/params_info.html".equals(resourcePath.split("\\?")[0])) {
-                            Map<String, List<String>> addedParameters = storeParameters(parameters);
-                            // Generate and serve the params_info.html page with parameter details
-                            generateParamsInfoPage(storedParameters);
-                            serveParamsInfoPage(writer, clientSocket.getOutputStream(), isChunked);
-                        } else {
-                            boolean isGoodRequest = serveResource(writer, clientSocket.getOutputStream(), resourcePath, false, isChunked);
-                            if (isGoodRequest) {
-                                storeParameters(bodyParameters);
+                            // Read and parse parameters from the body if Content-Length is present
+                            if (headers.containsKey("Content-Length")) {
+                                int contentLength = Integer.parseInt(headers.get("Content-Length"));
+                                char[] body = new char[contentLength];
+                                reader.read(body, 0, contentLength);
+                                String requestBody = new String(body);       
+                                bodyParameters = parseParameters("?" + requestBody);     
+                                parameters.putAll(bodyParameters);
+                                
                             }
-
+                            
+                    
+                        
+                            // Serve the params_info.html page with parameter details
+                            if ("/params_info.html".equals(resourcePath.split("\\?")[0])) {
+                                storeParameters(parameters);
+                                // Generate and serve the params_info.html page with parameter details
+                                generateParamsInfoPage(storedParameters);
+                                serveParamsInfoPage(writer, clientSocket.getOutputStream(), isChunked);
+                            } else {
+                                boolean isGoodRequest = serveResource(writer, clientSocket.getOutputStream(), resourcePath, false, isChunked);
+                                if (isGoodRequest) {
+                                    storeParameters(bodyParameters);
+                                }
+                            }
+                        } catch (Exception e) {
+                            sendInternalServerError(writer);
+                            System.err.println("Error handling POST request: " + e.getMessage());
                         }
                         break;
                     case "TRACE":
@@ -198,23 +209,26 @@ public class WebServer {
                         // Check if the response should be chunked
                         if (isChunked) {
                             writer.write("HTTP/1.1 200 OK\r\n");
-                            System.out.println("Response Header: HTTP/1.1 200 OK");
                             writer.write("Transfer-Encoding: chunked\r\n");
-                            System.out.println("Response Header: Transfer-Encoding: chunked");
                             writer.write("Content-Type: application/octet-stream\r\n\r\n");
-                            System.out.println("Response Header: Content-Type: application/octet-stream");
                             writer.flush();
+
+                            System.out.println("Response Header: HTTP/1.1 200 OK");
+                            System.out.println("Response Header: Transfer-Encoding: chunked");
+                            System.out.println("Response Header: Content-Type: application/octet-stream");
+
 
                             // Send the TRACE response body using chunked transfer encoding
                             sendChunkedResponse(clientSocket.getOutputStream(), traceResponseBody);
                         } else {
                             writer.write("HTTP/1.1 200 OK\r\n");
-                            System.out.println("Response Header: HTTP/1.1 200 OK");
                             writer.write("Content-Type: application/octet-stream\r\n");
-                            System.out.println("Response Header: Content-Type: application/octet-stream");
                             writer.write("Content-Length: " + traceResponseBody.length + "\r\n\r\n");
-                            System.out.println("Response Header: Content-Length: " + traceResponseBody.length);
                             writer.flush();
+
+                            System.out.println("Response Header: HTTP/1.1 200 OK");
+                            System.out.println("Response Header: Content-Type: application/octet-stream");
+                            System.out.println("Response Header: Content-Length: " + traceResponseBody.length);
 
                             // Write the TRACE response body
                             clientSocket.getOutputStream().write(traceResponseBody);
@@ -287,12 +301,13 @@ public class WebServer {
                 // Check if the response should be chunked
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
-                    System.out.println("Response Header: HTTP/1.1 200 OK");
                     writer.write("Transfer-Encoding: chunked\r\n");
-                    System.out.println("Response Header: Transfer-Encoding: chunked");
                     writer.write("Content-Type: text/html\r\n\r\n");
-                    System.out.println("Response Header: Content-Type: text/html");
                     writer.flush();
+
+                    System.out.println("Response Header: HTTP/1.1 200 OK");
+                    System.out.println("Response Header: Transfer-Encoding: chunked");
+                    System.out.println("Response Header: Content-Type: text/html");
 
                     sendChunkedResponse(clientSocket.getOutputStream(), fileContent);
                 } else {
@@ -379,6 +394,7 @@ public class WebServer {
                 System.out.println("Response Header: Content-Length: " + fileContent.length);
                 System.out.println("Response Header: Content-Type: " + contentType);
                 return true;
+
             } else {
                 sendNotFound(writer);
                 return false;
@@ -437,28 +453,44 @@ public class WebServer {
         }
         
 
-        private void sendBadRequest(BufferedWriter writer) throws IOException {
-            writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
-            writer.flush();
-            System.out.println("Response Header: HTTP/1.1 400 Bad Request");
+        private void sendBadRequest(BufferedWriter writer) {
+            try {
+                writer.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+                writer.flush();
+                System.out.println("Response Header: HTTP/1.1 400 Bad Request");
+            } catch (IOException e) {
+                System.err.println("Error sending 400 Bad Request: " + e.getMessage());
+            }
         }
-        
-        private void sendNotFound(BufferedWriter writer) throws IOException {
-            writer.write("HTTP/1.1 404 Not Found\r\n\r\n");
-            writer.flush();
-            System.out.println("Response Header: HTTP/1.1 404 Not Found");
+
+        private void sendNotFound(BufferedWriter writer) {
+            try {
+                writer.write("HTTP/1.1 404 Not Found\r\n\r\n");
+                writer.flush();
+                System.out.println("Response Header: HTTP/1.1 404 Not Found");
+            } catch (IOException e) {
+                System.err.println("Error sending 404 Not Found: " + e.getMessage());
+            }
         }
-        
-        private void sendNotImplemented(BufferedWriter writer) throws IOException {
-            writer.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
-            writer.flush();
-            System.out.println("Response Header: HTTP/1.1 501 Not Implemented");
+
+        private void sendNotImplemented(BufferedWriter writer) {
+            try {
+                writer.write("HTTP/1.1 501 Not Implemented\r\n\r\n");
+                writer.flush();
+                System.out.println("Response Header: HTTP/1.1 501 Not Implemented");
+            } catch (IOException e) {
+                System.err.println("Error sending 501 Not Implemented: " + e.getMessage());
+            }
         }
-        
-        private void sendInternalServerError(BufferedWriter writer) throws IOException {
-            writer.write("HTTP/1.1 500 Internal Server Error\r\n");
-            writer.flush();
-            System.out.println("Response Header: HTTP/1.1 500 Internal Server Error");
+
+        private void sendInternalServerError(BufferedWriter writer) {
+            try {
+                writer.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+                writer.flush();
+                System.out.println("Response Header: HTTP/1.1 500 Internal Server Error");
+            } catch (IOException e) {
+                System.err.println("Error sending 500 Internal Server Error: " + e.getMessage());
+            }
         }
     }
 }
