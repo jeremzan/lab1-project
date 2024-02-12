@@ -98,7 +98,6 @@ public class WebServer {
                     return;
                 }
 
-
                 // Normalize the path to remove "/../"
                 String[] pathSegments = resourcePath.split("/");
                 Deque<String> pathStack = new ArrayDeque<>();
@@ -139,6 +138,12 @@ public class WebServer {
                         headers.put(headerParts[0].trim(), headerParts[1].trim());
                         System.out.println("Request Header: " + headerParts[0].trim() + ": " + headerParts[1].trim()); // Print each request header
                     }
+                }
+                
+                // Check if the Host header is present
+                if (!headers.containsKey("Host")) {
+                    sendBadRequest(writer);
+                    return;
                 }
 
                 // Check for chunked transfer encoding request
