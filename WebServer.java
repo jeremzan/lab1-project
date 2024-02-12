@@ -32,7 +32,7 @@ public class WebServer {
                     executor.submit(new ClientHandler(clientSocket));
                 } catch (IOException e) {
                     System.err.println("Exception accepting client connection: " + e.getMessage());
-                    // Optionally, you could choose to break the loop and shut down the server here
+                    break;
                 }
             }
         } catch (Exception e) {
@@ -40,7 +40,7 @@ public class WebServer {
             e.printStackTrace();
         } finally {
             executor.shutdown();
-            System.out.println("Server is shutting down gracefully.");
+            System.out.println("Server is shutting down.");
         }
     }
     
@@ -298,6 +298,7 @@ public class WebServer {
             if (Files.exists(path) && !Files.isDirectory(path)) {
                 byte[] fileContent = Files.readAllBytes(path);
                 String contentType = "text/html"; // Content type for HTML
+
                 // Check if the response should be chunked
                 if (isChunked) {
                     writer.write("HTTP/1.1 200 OK\r\n");
